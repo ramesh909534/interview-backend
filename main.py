@@ -4,29 +4,43 @@ from resume import read_resume
 from database import init_db, save_interview, load_history
 from voice import listen_answer
 
+
 def main(page: ft.Page):
     page.title = "AI Interview Coach"
     page.scroll = ft.ScrollMode.AUTO
     page.padding = 20
 
-    # INIT DB
+    # ---------- INIT DB ----------
     init_db()
 
-    # STATE
+    # ---------- SESSION INIT ----------
     page.session.set("resume_text", "")
     page.session.set("questions", [])
     page.session.set("index", 0)
     page.session.set("score", 0)
 
-    # UI
-    role_input = ft.TextField(label="Job Role (e.g HR, Data Scientist)", width=400)
-    question_text = ft.Text(size=16, weight=ft.FontWeight.BOLD)
-    answer_input = ft.TextField(multiline=True, min_lines=4, width=600)
+    # ---------- UI CONTROLS ----------
+    role_input = ft.TextField(
+        label="Job Role (e.g HR, Data Scientist)",
+        width=400
+    )
+
+    question_text = ft.Text(
+        size=16,
+        weight=ft.FontWeight.BOLD
+    )
+
+    answer_input = ft.TextField(
+        multiline=True,
+        min_lines=4,
+        width=600
+    )
+
     status = ft.Text()
     feedback = ft.Text()
     history_col = ft.Column()
 
-    # FILE PICKER
+    # ---------- FILE PICKER ----------
     file_picker = ft.FilePicker()
     page.overlay.append(file_picker)
 
@@ -45,19 +59,23 @@ def main(page: ft.Page):
                 resume_text = ""
 
             page.session.set("resume_text", resume_text)
-            status.value = "✅ Resume uploaded"
+            status.value = "✅ Resume uploaded successfully"
 
         except:
             page.session.set("resume_text", "")
-            status.value = "⚠️ Resume ignored"
+            status.value = "⚠️ Resume ignored (safe mode)"
 
         page.update()
 
     file_picker.on_result = upload_resume
 
+    # ---------- START INTERVIEW ----------
     def start_interview(e):
         role = role_input.value.strip()
-        resume_text = page.session.get("resume_text", "")
+
+        resume_text = page.session.get("resume_text")
+        if resume_text is None:
+            resume_text = ""
 
         if not role:
             status.value = "❌ Enter job role"
@@ -65,6 +83,7 @@ def main(page: ft.Page):
             return
 
         questions = generate_questions(role, resume_text)
+
         if not questions:
             status.value = "❌ Unable to generate questions"
             page.update()
@@ -80,18 +99,32 @@ def main(page: ft.Page):
         status.value = "✅ Interview started"
         page.update()
 
+    # ---------- SUBMIT ANSWER ----------
     def submit_answer(e):
         questions = page.session.get("questions")
+        if questions is None:
+            questions = []
+
         index = page.session.get("index")
+        if index is None:
+            index = 0
+
+        score_total = page.session.get("score")
+        if score_total is None:
+            score_total = 0
 
         if index >= len(questions):
             return
 
-        score, fb = evaluate_answer(questions[index], answer_input.value)
-        total = page.session.get("score") + score
+        score, fb = evaluate_answer(
+            questions[index],
+            answer_input.value
+        )
 
-        page.session.set("score", total)
+        score_total += score
+        page.session.set("score", score_total)
         feedback.value = fb
+
         index += 1
         page.session.set("index", index)
 
@@ -99,32 +132,40 @@ def main(page: ft.Page):
             question_text.value = questions[index]
             answer_input.value = ""
         else:
-            final_score = int((total / (len(questions) * 10)) * 100)
-            question_text.value = f"🎉 Interview Completed!\nScore: {final_score}/100"
+            final_score = int((score_total / (len(questions) * 10)) * 100)
+            question_text.value = f"🎉 Interview Completed!\nFinal Score: {final_score}/100"
             save_interview(role_input.value, final_score)
             refresh_history()
 
         page.update()
 
+    # ---------- VOICE ----------
     def speak(e):
         answer_input.value = listen_answer()
         page.update()
 
+    # ---------- HISTORY ----------
     def refresh_history():
         history_col.controls.clear()
-        for r, s, d in load_history():
+        for role, score, date in load_history():
             history_col.controls.append(
-                ft.Text(f"{d} | {r} | {s}/100")
+                ft.Text(f"{date} | {role} | {score}/100")
             )
 
     refresh_history()
 
-    # LAYOUT
+    # ---------- LAYOUT ----------
     page.add(
         ft.Text("🤖 AI Interview Coach", size=22, weight=ft.FontWeight.BOLD),
         role_input,
-        ft.ElevatedButton("Upload Resume (PDF)", on_click=lambda _: file_picker.pick_files()),
-        ft.ElevatedButton("Start Interview", on_click=start_interview),
+        ft.ElevatedButton(
+            "Upload Resume (PDF)",
+            on_click=lambda _: file_picker.pick_files()
+        ),
+        ft.ElevatedButton(
+            "Start Interview",
+            on_click=start_interview
+        ),
         status,
         ft.Divider(),
         question_text,
@@ -138,5 +179,6 @@ def main(page: ft.Page):
         ft.Text("📊 Interview History", size=18, weight=ft.FontWeight.BOLD),
         history_col
     )
+
 
 ft.app(target=main)
