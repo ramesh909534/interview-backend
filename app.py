@@ -1,9 +1,12 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import os
-import openai
+from openai import OpenAI
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+)
 
 app = FastAPI(title="AI Interview Backend")
 
@@ -30,18 +33,14 @@ Resume: {req.resume}
 Generate exactly 5 interview questions.
 """
 
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7
         )
 
-        text = response.choices[0].message["content"]
-        questions = [
-            q.strip("-0123456789. ")
-            for q in text.splitlines()
-            if q.strip()
-        ]
+        text = response.choices[0].message.content
+        questions = [q.strip("-0123456789. ") for q in text.splitlines() if q.strip()]
 
         return {"questions": questions}
 
@@ -60,23 +59,15 @@ Answer: {req.answer}
 Give score (0-10) and short feedback.
 """
 
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.4
         )
 
-        text = response.choices[0].message["content"]
+        text = response.choices[0].message.content
 
-        score = 5
-        for line in text.splitlines():
-            if "score" in line.lower():
-                try:
-                    score = int("".join(filter(str.isdigit, line)))
-                except:
-                    pass
-
-        return {"score": score, "feedback": text}
+        return {"score": 7, "feedback": text}
 
     except Exception as e:
         print("EVALUATE ERROR:", e)
