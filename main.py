@@ -8,20 +8,21 @@ def main(page: ft.Page):
     page.title = "AI Interview Coach"
     page.scroll = "auto"
 
-    # ---------- INIT ----------
+    # ---------- INIT DB ----------
     init_db()
 
+    # ---------- STATE ----------
     questions = []
     current_index = 0
     total_score = 0
     role = ""
     resume_text = ""
 
-    # ---------- FILE PICKER (FIXED) ----------
+    # ---------- FILE PICKER (LATEST FLET FIX) ----------
     file_picker = ft.FilePicker()
     page.overlay.append(file_picker)
 
-    # ---------- UI CONTROLS ----------
+    # ---------- UI ----------
     role_input = ft.TextField(
         label="Job Role (e.g. HR, Data Scientist)",
         width=400
@@ -51,14 +52,19 @@ def main(page: ft.Page):
     def upload_resume(e: ft.FilePickerResultEvent):
         nonlocal resume_text
         if e.files:
-            resume_text = read_resume(e.files[0].bytes)
-            status_text.value = "✅ Resume uploaded successfully"
-            page.update()
+            try:
+                # IMPORTANT FIX: use bytes (path is None in web)
+                resume_text = read_resume(e.files[0].bytes)
+                status_text.value = "✅ Resume uploaded successfully"
+            except Exception as ex:
+                status_text.value = f"❌ Resume read error: {ex}"
+        page.update()
 
     file_picker.on_result = upload_resume
 
     def start_interview(e):
         nonlocal questions, current_index, total_score, role
+
         role = role_input.value.strip()
 
         if not role:
@@ -86,9 +92,10 @@ def main(page: ft.Page):
             role
         )
 
-        total_score += 1
+        status_text.value = feedback
         answer_input.value = ""
 
+        total_score += 1
         current_index += 1
 
         if current_index < len(questions):
@@ -96,7 +103,7 @@ def main(page: ft.Page):
         else:
             save_interview(role, f"{total_score}/{len(questions)}")
             question_text.value = "🎉 Interview completed"
-            status_text.value = "Results saved"
+            status_text.value = "✅ Result saved"
             refresh_history()
 
         page.update()
@@ -120,7 +127,7 @@ def main(page: ft.Page):
         on_click=submit_answer
     )
 
-    # ---------- PAGE LAYOUT ----------
+    # ---------- LAYOUT ----------
     page.add(
         ft.Text("🤖 AI Interview Coach", size=22, weight="bold"),
         role_input,
@@ -140,4 +147,3 @@ def main(page: ft.Page):
 
 
 ft.app(target=main)
-
