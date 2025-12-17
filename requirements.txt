@@ -1,6 +1,5 @@
-flet==0.28.3
+fastapi
+uvicorn
+openai
+pydantic
 requests
-pypdf
-SpeechRecognition
-pyaudio
-sqlite-utils
