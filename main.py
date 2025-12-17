@@ -51,7 +51,7 @@ def main(page: ft.Page):
     def upload_resume(e: ft.FilePickerResultEvent):
         nonlocal resume_text
         if e.files:
-            resume_text = read_resume(e.files[0].path)
+            resume_text = read_resume(e.files[0].bytes)
             status_text.value = "✅ Resume uploaded successfully"
             page.update()
 
@@ -140,3 +140,4 @@ def main(page: ft.Page):
 
 
 ft.app(target=main)
+
