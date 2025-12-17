@@ -1,167 +1,157 @@
 import flet as ft
 from ai_engine import generate_questions, evaluate_answer
 from resume import read_resume
-from database import init_db, save_interview, load_history
+from database import save_interview, load_history
+from datetime import datetime
 
 
 def main(page: ft.Page):
     page.title = "AI Interview Coach"
-    page.scroll = "auto"
-
-    # ---------- INIT DB ----------
-    init_db()
+    page.scroll = ft.ScrollMode.AUTO
 
     # ---------- STATE ----------
-    questions = []
-    current_index = 0
-    total_score = 0
-    role = ""
-    resume_text = ""
+    page.session.set("resume_text", "")
+    page.session.set("questions", [])
+    page.session.set("current_index", 0)
+    page.session.set("score", 0)
 
-    # ---------- FILE PICKER (LATEST FLET FIX) ----------
-    file_picker = ft.FilePicker()
-    page.overlay.append(file_picker)
-
-    # ---------- UI ----------
+    # ---------- UI CONTROLS ----------
     role_input = ft.TextField(
         label="Job Role (e.g. HR, Data Scientist)",
         width=400
     )
 
-    question_text = ft.Text(size=16, weight="bold")
     answer_input = ft.TextField(
         label="Your Answer",
         multiline=True,
-        min_lines=3,
-        max_lines=6,
-        width=500
+        min_lines=4,
+        width=600
     )
 
-    status_text = ft.Text()
+    status_text = ft.Text("")
+    question_text = ft.Text(size=16, weight=ft.FontWeight.BOLD)
+
     history_column = ft.Column()
 
-    # ---------- FUNCTIONS ----------
-    def refresh_history():
-        history_column.controls.clear()
-        for r, s, d in load_history():
-            history_column.controls.append(
-                ft.Text(f"{d} | {r} | Score: {s}")
-            )
-        page.update()
+    # ---------- FILE PICKER ----------
+    file_picker = ft.FilePicker()
+    page.overlay.append(file_picker)
 
-def upload_resume(e: ft.FilePickerResultEvent):
-    nonlocal resume_text
-
-    if not e.files:
-        status_text.value = "❌ No file selected"
-        page.update()
-        return
-
-    file = e.files[0]
-
-    try:
-        # APK / Mobile
-        if hasattr(file, "bytes") and file.bytes is not None:
-            resume_text = read_resume(file.bytes)
-
-        # Web / Windows
-        elif file.path:
-            resume_text = read_resume(file.path)
-
-        else:
-            raise Exception("Unable to read resume file")
-
-        status_text.value = "✅ Resume uploaded successfully"
-
-    except Exception as ex:
-        status_text.value = f"❌ Resume read error: {ex}"
-
-    page.update()
-
-
-    def start_interview(e):
-        nonlocal questions, current_index, total_score, role
-
-        role = role_input.value.strip()
-
-        if not role:
-            status_text.value = "❌ Please enter job role"
+    def upload_resume(e: ft.FilePickerResultEvent):
+        if not e.files:
+            status_text.value = "❌ No file selected"
             page.update()
             return
 
-        questions = generate_questions(resume_text, role)
-        current_index = 0
-        total_score = 0
+        file = e.files[0]
 
-        question_text.value = questions[current_index]
-        status_text.value = "✅ Interview started"
+        try:
+            # Web / Windows
+            if file.path:
+                resume_text = read_resume(file.path)
+            # Mobile APK
+            elif hasattr(file, "bytes") and file.bytes:
+                resume_text = read_resume(file.bytes)
+            else:
+                raise Exception("Unable to read file")
+
+            page.session.set("resume_text", resume_text)
+            status_text.value = "✅ Resume uploaded successfully"
+
+        except Exception as ex:
+            status_text.value = f"❌ Resume error: {ex}"
+
+        page.update()
+
+    file_picker.on_result = upload_resume
+
+    # ---------- INTERVIEW ----------
+    def start_interview(e):
+        role = role_input.value.strip()
+        resume_text = page.session.get("resume_text", "")
+
+        if not role:
+            status_text.value = "❌ Enter job role"
+            page.update()
+            return
+
+        try:
+            questions = generate_questions(role, resume_text)
+            page.session.set("questions", questions)
+            page.session.set("current_index", 0)
+            page.session.set("score", 0)
+
+            question_text.value = f"Q1. {questions[0]}"
+            status_text.value = "✅ Interview started"
+            answer_input.value = ""
+
+        except Exception as ex:
+            status_text.value = f"❌ Question error: {ex}"
+
         page.update()
 
     def submit_answer(e):
-        nonlocal current_index, total_score
+        questions = page.session.get("questions", [])
+        index = page.session.get("current_index", 0)
 
-        if current_index >= len(questions):
+        if index >= len(questions):
             return
 
-        feedback = evaluate_answer(
-            questions[current_index],
-            answer_input.value,
-            role
-        )
+        try:
+            score, feedback = evaluate_answer(
+                questions[index],
+                answer_input.value
+            )
 
-        status_text.value = feedback
-        answer_input.value = ""
+            total = page.session.get("score") + score
+            page.session.set("score", total)
 
-        total_score += 1
-        current_index += 1
+            index += 1
+            page.session.set("current_index", index)
 
-        if current_index < len(questions):
-            question_text.value = questions[current_index]
-        else:
-            save_interview(role, f"{total_score}/{len(questions)}")
-            question_text.value = "🎉 Interview completed"
-            status_text.value = "✅ Result saved"
-            refresh_history()
+            if index < len(questions):
+                question_text.value = f"Q{index+1}. {questions[index]}"
+                answer_input.value = ""
+                status_text.value = f"Score: {total}"
+            else:
+                status_text.value = f"🎉 Interview finished! Final Score: {total}"
+                save_interview(role_input.value, total)
+                refresh_history()
+
+        except Exception as ex:
+            status_text.value = f"❌ Answer error: {ex}"
 
         page.update()
 
-    # ---------- BUTTONS ----------
-    upload_btn = ft.ElevatedButton(
-        "Upload Resume (PDF)",
-        on_click=lambda _: file_picker.pick_files(
-            allow_multiple=False,
-            allowed_extensions=["pdf"]
-        )
-    )
-
-    start_btn = ft.ElevatedButton(
-        "Start Interview",
-        on_click=start_interview
-    )
-
-    submit_btn = ft.ElevatedButton(
-        "Submit Answer",
-        on_click=submit_answer
-    )
-
-    # ---------- LAYOUT ----------
-    page.add(
-        ft.Text("🤖 AI Interview Coach", size=22, weight="bold"),
-        role_input,
-        upload_btn,
-        start_btn,
-        ft.Divider(),
-        question_text,
-        answer_input,
-        submit_btn,
-        status_text,
-        ft.Divider(),
-        ft.Text("📊 Interview History", weight="bold"),
-        history_column
-    )
+    # ---------- HISTORY ----------
+    def refresh_history():
+        history_column.controls.clear()
+        for h in load_history():
+            history_column.controls.append(
+                ft.Text(f"{h[2]} | {h[0]} | {h[1]}/100")
+            )
 
     refresh_history()
 
+    # ---------- LAYOUT ----------
+    page.add(
+        ft.Column(
+            [
+                ft.Text("🤖 AI Interview Coach", size=22, weight=ft.FontWeight.BOLD),
+                role_input,
+                ft.ElevatedButton("Upload Resume (PDF)", on_click=lambda _: file_picker.pick_files()),
+                ft.ElevatedButton("Start Interview", on_click=start_interview),
+                status_text,
+                ft.Divider(),
+                question_text,
+                answer_input,
+                ft.ElevatedButton("Submit Answer", on_click=submit_answer),
+                ft.Divider(),
+                ft.Text("📊 Interview History", size=18, weight=ft.FontWeight.BOLD),
+                history_column,
+            ]
+        )
+    )
 
-ft.app(target=main)
 
+ft.app(target=main, view=ft.WEB_BROWSER)
