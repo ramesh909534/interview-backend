@@ -49,18 +49,35 @@ def main(page: ft.Page):
             )
         page.update()
 
-    def upload_resume(e: ft.FilePickerResultEvent):
-        nonlocal resume_text
-        if e.files:
-            try:
-                # IMPORTANT FIX: use bytes (path is None in web)
-                resume_text = read_resume(e.files[0].bytes)
-                status_text.value = "✅ Resume uploaded successfully"
-            except Exception as ex:
-                status_text.value = f"❌ Resume read error: {ex}"
-        page.update()
+def upload_resume(e: ft.FilePickerResultEvent):
+    nonlocal resume_text
 
-    file_picker.on_result = upload_resume
+    if not e.files:
+        status_text.value = "❌ No file selected"
+        page.update()
+        return
+
+    file = e.files[0]
+
+    try:
+        # APK / Mobile
+        if hasattr(file, "bytes") and file.bytes is not None:
+            resume_text = read_resume(file.bytes)
+
+        # Web / Windows
+        elif file.path:
+            resume_text = read_resume(file.path)
+
+        else:
+            raise Exception("Unable to read resume file")
+
+        status_text.value = "✅ Resume uploaded successfully"
+
+    except Exception as ex:
+        status_text.value = f"❌ Resume read error: {ex}"
+
+    page.update()
+
 
     def start_interview(e):
         nonlocal questions, current_index, total_score, role
@@ -147,3 +164,4 @@ def main(page: ft.Page):
 
 
 ft.app(target=main)
+
