@@ -1,5 +1,8 @@
 import requests
 import os
+from googletrans import Translator
+
+translator = Translator()
 
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -71,10 +74,6 @@ def _call_ai(prompt: str) -> str:
 # GENERATE QUESTIONS (HOSPITAL ONLY)
 # =====================================================
 def generate_questions(role: str, resume: str):
-    """
-    Hospital domain only.
-    Old behavior preserved.
-    """
     try:
         role_text = role.strip()
 
@@ -113,17 +112,20 @@ def generate_questions(role: str, resume: str):
 
 
 # =====================================================
-# BASIC EVALUATION (UNCHANGED STRUCTURE)
+# BASIC EVALUATION
 # =====================================================
 def evaluate_answer(question: str, answer: str):
     try:
+
+        # ---------- AUTO TRANSLATE TO ENGLISH ----------
+        translated_answer = translator.translate(answer, dest="en").text
 
         lang_instruction = LANG_PROMPT.get(LANG, "")
 
         prompt = (
             "Hospital Interview Evaluation\n\n"
             f"Interview Question:\n{question}\n\n"
-            f"Candidate Answer:\n{answer}\n\n"
+            f"Candidate Answer:\n{translated_answer}\n\n"
             "Give:\n"
             "1) Score out of 10\n"
             "2) Short constructive feedback\n\n"
@@ -154,12 +156,14 @@ def evaluate_answer(question: str, answer: str):
 def evaluate_hr_detailed(question: str, answer: str):
     try:
 
+        translated_answer = translator.translate(answer, dest="en").text
+
         lang_instruction = LANG_PROMPT.get(LANG, "")
 
         prompt = (
             "Final HR Hospital Interview Evaluation\n\n"
             f"Final HR Interview Question:\n{question}\n\n"
-            f"Candidate Answer:\n{answer}\n\n"
+            f"Candidate Answer:\n{translated_answer}\n\n"
             "Provide detailed HR analysis.\n\n"
             f"{lang_instruction}"
         )
