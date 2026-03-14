@@ -1,8 +1,12 @@
 import requests
 import os
-from googletrans import Translator
 
-translator = Translator()
+# ---------- SAFE TRANSLATOR ----------
+try:
+    from googletrans import Translator
+    translator = Translator()
+except Exception:
+    translator = None
 
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -46,7 +50,7 @@ ALLOWED_ROLES = [
 
 
 # =====================================================
-# INTERNAL AI CALL (DO NOT CHANGE)
+# INTERNAL AI CALL
 # =====================================================
 def _call_ai(prompt: str) -> str:
     payload = {
@@ -71,7 +75,7 @@ def _call_ai(prompt: str) -> str:
 
 
 # =====================================================
-# GENERATE QUESTIONS (HOSPITAL ONLY)
+# GENERATE QUESTIONS
 # =====================================================
 def generate_questions(role: str, resume: str):
     try:
@@ -82,25 +86,14 @@ def generate_questions(role: str, resume: str):
 
         lang_instruction = LANG_PROMPT.get(LANG, "")
 
-        if "Final HR" in role or "Negotiation" in role:
-            prompt = (
-                "You are an HR manager conducting the FINAL interview round "
-                "for a hospital job role.\n"
-                "Ask 5 realistic hospital HR + salary negotiation questions.\n\n"
-                f"Hospital Job role: {role}\n"
-                f"Candidate resume:\n{resume}\n\n"
-                f"{lang_instruction}\n"
-                "Return each question in a new line."
-            )
-        else:
-            prompt = (
-                "Generate 5 professional hospital interview questions.\n"
-                "Questions must be relevant to hospital / healthcare environment.\n\n"
-                f"Hospital Job role: {role}\n"
-                f"Candidate resume:\n{resume}\n\n"
-                f"{lang_instruction}\n"
-                "Return each question in a new line."
-            )
+        prompt = (
+            "Generate 5 professional hospital interview questions.\n"
+            "Questions must be relevant to hospital / healthcare environment.\n\n"
+            f"Hospital Job role: {role}\n"
+            f"Candidate resume:\n{resume}\n\n"
+            f"{lang_instruction}\n"
+            "Return each question in a new line."
+        )
 
         text = _call_ai(prompt)
 
@@ -117,8 +110,14 @@ def generate_questions(role: str, resume: str):
 def evaluate_answer(question: str, answer: str):
     try:
 
-        # ---------- AUTO TRANSLATE TO ENGLISH ----------
-        translated_answer = translator.translate(answer, dest="en").text
+        # ---------- SAFE TRANSLATION ----------
+        if translator:
+            try:
+                translated_answer = translator.translate(answer, dest="en").text
+            except Exception:
+                translated_answer = answer
+        else:
+            translated_answer = answer
 
         lang_instruction = LANG_PROMPT.get(LANG, "")
 
@@ -156,7 +155,13 @@ def evaluate_answer(question: str, answer: str):
 def evaluate_hr_detailed(question: str, answer: str):
     try:
 
-        translated_answer = translator.translate(answer, dest="en").text
+        if translator:
+            try:
+                translated_answer = translator.translate(answer, dest="en").text
+            except Exception:
+                translated_answer = answer
+        else:
+            translated_answer = answer
 
         lang_instruction = LANG_PROMPT.get(LANG, "")
 
