@@ -1,6 +1,0 @@
-fastapi
-uvicorn
-requests
-pypdf
-python-multipart
-speechrecognition
