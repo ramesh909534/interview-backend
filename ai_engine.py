@@ -1,13 +1,6 @@
 import requests
 import os
 
-# ---------- SAFE TRANSLATOR ----------
-try:
-    from googletrans import Translator
-    translator = Translator()
-except Exception:
-    translator = None
-
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 HEADERS = {
@@ -105,31 +98,30 @@ def generate_questions(role: str, resume: str):
 
 
 # =====================================================
-# BASIC EVALUATION
+# BASIC EVALUATION (AI TRANSLATION ENABLED)
 # =====================================================
 def evaluate_answer(question: str, answer: str):
     try:
 
-        # ---------- SAFE TRANSLATION ----------
-        if translator:
-            try:
-                translated_answer = translator.translate(answer, dest="en").text
-            except Exception:
-                translated_answer = answer
-        else:
-            translated_answer = answer
-
-        lang_instruction = LANG_PROMPT.get(LANG, "")
-
         prompt = (
             "Hospital Interview Evaluation\n\n"
+
+            "IMPORTANT:\n"
+            "If the candidate answer is NOT in English, "
+            "first translate it into English internally.\n"
+            "Then evaluate the translated answer.\n\n"
+
             f"Interview Question:\n{question}\n\n"
-            f"Candidate Answer:\n{translated_answer}\n\n"
+            f"Candidate Answer:\n{answer}\n\n"
+
+            "Evaluate answer relevance to hospital / healthcare role.\n"
             "Give:\n"
             "1) Score out of 10\n"
             "2) Short constructive feedback\n\n"
-            f"{lang_instruction}\n"
-            "Format:\nScore: X\nFeedback: text"
+
+            "Format:\n"
+            "Score: X\n"
+            "Feedback: text"
         )
 
         text = _call_ai(prompt)
@@ -155,22 +147,21 @@ def evaluate_answer(question: str, answer: str):
 def evaluate_hr_detailed(question: str, answer: str):
     try:
 
-        if translator:
-            try:
-                translated_answer = translator.translate(answer, dest="en").text
-            except Exception:
-                translated_answer = answer
-        else:
-            translated_answer = answer
-
-        lang_instruction = LANG_PROMPT.get(LANG, "")
-
         prompt = (
             "Final HR Hospital Interview Evaluation\n\n"
+
+            "IMPORTANT:\n"
+            "If the candidate answer is not English, "
+            "translate it to English first.\n\n"
+
             f"Final HR Interview Question:\n{question}\n\n"
-            f"Candidate Answer:\n{translated_answer}\n\n"
-            "Provide detailed HR analysis.\n\n"
-            f"{lang_instruction}"
+            f"Candidate Answer:\n{answer}\n\n"
+
+            "Provide detailed HR analysis including:\n"
+            "- Communication\n"
+            "- Confidence\n"
+            "- Professionalism\n"
+            "- Improvement suggestions\n"
         )
 
         return _call_ai(prompt)
