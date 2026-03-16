@@ -98,7 +98,7 @@ def generate_questions(role: str, resume: str):
 
 
 # =====================================================
-# BASIC EVALUATION (AI TRANSLATION ENABLED)
+# BASIC EVALUATION (WITH AI TRANSLATION)
 # =====================================================
 def evaluate_answer(question: str, answer: str):
     try:
@@ -106,39 +106,47 @@ def evaluate_answer(question: str, answer: str):
         prompt = (
             "Hospital Interview Evaluation\n\n"
 
-            "IMPORTANT:\n"
-            "If the candidate answer is NOT in English, "
-            "first translate it into English internally.\n"
-            "Then evaluate the translated answer.\n\n"
+            "STEP 1:\n"
+            "If the candidate answer is NOT English, translate it into English.\n\n"
+
+            "STEP 2:\n"
+            "Evaluate the translated answer.\n\n"
 
             f"Interview Question:\n{question}\n\n"
             f"Candidate Answer:\n{answer}\n\n"
 
-            "Evaluate answer relevance to hospital / healthcare role.\n"
-            "Give:\n"
-            "1) Score out of 10\n"
-            "2) Short constructive feedback\n\n"
-
-            "Format:\n"
+            "Return EXACTLY in this format:\n"
+            "Translated: <english version>\n"
             "Score: X\n"
             "Feedback: text"
         )
 
         text = _call_ai(prompt)
 
+        translated = ""
         score = 0
-        feedback = text
+        feedback = ""
 
         for line in text.split("\n"):
-            if "score" in line.lower():
+
+            if line.lower().startswith("translated"):
+                translated = line.split(":", 1)[1].strip()
+
+            elif "score" in line.lower():
                 digits = "".join(c for c in line if c.isdigit())
                 if digits:
                     score = min(int(digits), 10)
 
-        return score, feedback
+            elif "feedback" in line.lower():
+                feedback = line.split(":", 1)[1].strip()
+
+        if not translated:
+            translated = answer
+
+        return score, feedback, translated
 
     except Exception:
-        return 0, "Evaluation failed"
+        return 0, "Evaluation failed", answer
 
 
 # =====================================================
@@ -151,8 +159,7 @@ def evaluate_hr_detailed(question: str, answer: str):
             "Final HR Hospital Interview Evaluation\n\n"
 
             "IMPORTANT:\n"
-            "If the candidate answer is not English, "
-            "translate it to English first.\n\n"
+            "If the candidate answer is not English, translate it to English first.\n\n"
 
             f"Final HR Interview Question:\n{question}\n\n"
             f"Candidate Answer:\n{answer}\n\n"
